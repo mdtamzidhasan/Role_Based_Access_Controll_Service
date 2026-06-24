@@ -1,0 +1,114 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Operation;
+use App\Models\Permission;
+use App\Models\RbacObject;
+use App\Models\Role;
+use Illuminate\Http\Request;
+use Illuminate\Support\Str;
+
+class RoleController extends Controller
+{
+    //Role List Page 
+    public function index()
+    {
+        $roles = Role::withCount('permissions')->get();
+        return view('roles.index', compact('roles'));
+    }
+
+    // Permission Matrix Edit Page
+    public function editPermissions(int $id)
+    {
+        $role       = Role::with('permissions')->findOrFail($id);
+        $objects    = RbacObject::all();
+        $operations = Operation::all();
+        $allPermissions = Permission::with('object', 'operation')->get();
+        $rolePermissionSlugs = $role->permissions->pluck('slug')->toArray();
+
+        return view('roles.permissions', compact(
+            'role', 'objects', 'operations',
+            'allPermissions', 'rolePermissionSlugs'
+        ));
+    }
+
+    //Permission Update 
+    public function updatePermissions(Request $request, int $id)
+    {
+        $role = Role::findOrFail($id);
+
+        $selectedSlugs = $request->input('permissions', []);
+
+        $permissionIds = Permission::whereIn('slug', $selectedSlugs)
+                                    ->pluck('id');
+
+        $role->permissions()->sync($permissionIds);
+
+        return redirect()->route('roles.index')
+            ->with('success', "Permissions for '{$role->name}' updated successfully.");
+    }
+
+    //Create a new role
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
+            'name'        => ['required', 'string', 'max:100', 'unique:roles,name'],
+            'description' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        Role::create([
+            'name'        => $validated['name'],
+            'slug'        => Str::slug($validated['name'], '_'),
+            'description' => $validated['description'] ?? null,
+            'is_active'   => true,
+        ]);
+
+        return redirect()->route('roles.index')
+            ->with('success', "Role '{$validated['name']}' created successfully.");
+    }
+
+
+    //Role Delete 
+    public function destroy(int $id)
+    {
+        $role = Role::findOrFail($id);
+        $name = $role->name;
+        $role->delete();
+
+        return redirect()->route('roles.index')
+            ->with('success', "Role '{$name}' deleted successfully.");
+    }
+
+    public function storeObject(Request $request)
+    {
+        $validated = $request->validate([
+            'name'        => ['required', 'string', 'max:100', 'unique:objects,name'],
+            'description' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $object = \App\Models\RbacObject::create([
+            'name'        => $validated['name'],
+            'slug'        => Str::slug($validated['name'], '_'),
+            'description' => $validated['description'] ?? null,
+        ]);
+
+        // এই নতুন object এর জন্য সব operation এর permission তৈরি করো
+        $operations = Operation::all();
+        foreach ($operations as $operation) {
+            $slug = $object->slug . '.' . $operation->slug;
+            Permission::firstOrCreate(
+                ['slug' => $slug],
+                [
+                    'object_id'    => $object->id,
+                    'operation_id' => $operation->id,
+                    'slug'         => $slug,
+                    'description'  => "{$operation->name} {$object->name}",
+                ]   
+            );
+        }
+
+        return redirect()->back()
+            ->with('success', "Object '{$object->name}' created successfully with all permissions.");
+    }
+}
