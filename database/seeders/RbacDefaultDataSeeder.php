@@ -12,7 +12,7 @@ class RbacDefaultDataSeeder extends Seeder
 {
     public function run(): void
     {
-        // ── Objects (কোন জিনিসে permission) ─────────────────
+        // ── Objects (kon module e permission) ─────────────────
         $objects = [
             ['name' => 'Employee',     'slug' => 'employee',     'description' => 'Employee management'],
             ['name' => 'Salary',       'slug' => 'salary',       'description' => 'Salary information'],
@@ -25,7 +25,7 @@ class RbacDefaultDataSeeder extends Seeder
             RbacObject::firstOrCreate(['slug' => $obj['slug']], $obj);
         }
 
-        // ── Operations (কী করতে পারবে) ───────────────────────
+        // Operations ki ki kaj e permission pabe
         $operations = [
             ['name' => 'View',   'slug' => 'view',   'description' => 'View/read data'],
             ['name' => 'Create', 'slug' => 'create', 'description' => 'Create new records'],

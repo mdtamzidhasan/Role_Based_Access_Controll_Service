@@ -11,7 +11,7 @@ class PermissionCheckController extends Controller
     // Check all permissions of a user
     public function check(Request $request, int $userId)
     {
-        $userRole = UserRole::with('role.permissions')
+        $userRole = UserRole::with('role.permissions.object')
                              ->where('user_id', $userId)
                              ->first();
 
@@ -20,15 +20,34 @@ class PermissionCheckController extends Controller
                 'user_id'     => $userId,
                 'role'        => null,
                 'permissions' => [],
+                'objects'     => [],
             ]);
         }
 
         $permissions = $userRole->role->permissions->pluck('slug')->toArray();
 
+        // Object গুলো group করে পাঠাও (slug → operations + metadata)
+        $objects = [];
+        foreach ($userRole->role->permissions as $perm) {
+            $objSlug = $perm->object->slug;
+            if (!isset($objects[$objSlug])) {
+                $objects[$objSlug] = [
+                    'slug'            => $objSlug,
+                    'name'            => $perm->object->name,
+                    'object_type'     => $perm->object->object_type,
+                    'department_name' => $perm->object->department_name,
+                    'description'     => $perm->object->description,
+                    'operations'      => [],
+                ];
+            }
+            $objects[$objSlug]['operations'][] = $perm->operation->slug;
+        }
+
         return response()->json([
             'user_id'     => $userId,
             'role'        => $userRole->role->only(['id', 'name', 'slug']),
             'permissions' => $permissions,
+            'objects'     => array_values($objects),
         ]);
     }
 
